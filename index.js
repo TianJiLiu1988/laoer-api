@@ -261,15 +261,26 @@ app.get('/api/sessions/:sessionKey/history', async (req, res) => {
         if (entry.type === 'message' && entry.message) {
           const msg = entry.message;
           if (msg.role && msg.content) {
-            // 提取文本内容
+            // 提取文本内容（包括 text 和 toolCall）
             let text = '';
             if (typeof msg.content === 'string') {
               text = msg.content;
             } else if (Array.isArray(msg.content)) {
-              text = msg.content
-                .filter(c => c.type === 'text')
-                .map(c => c.text)
-                .join('\n');
+              const parts = [];
+              for (const c of msg.content) {
+                if (c.type === 'text' && c.text) {
+                  parts.push(c.text);
+                } else if (c.type === 'toolCall' && c.name) {
+                  parts.push(`🔧 调用: ${c.name}`);
+                } else if (c.type === 'toolResult') {
+                  // 工具结果可以简化显示
+                  const resultPreview = typeof c.content === 'string' 
+                    ? c.content.slice(0, 200) 
+                    : JSON.stringify(c.content).slice(0, 200);
+                  parts.push(`📋 结果: ${resultPreview}${resultPreview.length >= 200 ? '...' : ''}`);
+                }
+              }
+              text = parts.join('\n');
             }
             
             if (text) {
@@ -287,10 +298,20 @@ app.get('/api/sessions/:sessionKey/history', async (req, res) => {
           if (typeof entry.content === 'string') {
             text = entry.content;
           } else if (Array.isArray(entry.content)) {
-            text = entry.content
-              .filter(c => c.type === 'text')
-              .map(c => c.text)
-              .join('\n');
+            const parts = [];
+            for (const c of entry.content) {
+              if (c.type === 'text' && c.text) {
+                parts.push(c.text);
+              } else if (c.type === 'toolCall' && c.name) {
+                parts.push(`🔧 调用: ${c.name}`);
+              } else if (c.type === 'toolResult') {
+                const resultPreview = typeof c.content === 'string' 
+                  ? c.content.slice(0, 200) 
+                  : JSON.stringify(c.content).slice(0, 200);
+                parts.push(`📋 结果: ${resultPreview}${resultPreview.length >= 200 ? '...' : ''}`);
+              }
+            }
+            text = parts.join('\n');
           }
           
           if (text) {
