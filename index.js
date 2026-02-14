@@ -219,15 +219,30 @@ app.get('/api/sessions/:sessionKey/history', async (req, res) => {
   try {
     const { sessionKey } = req.params;
     
-    // 解析 sessionKey: agent:{agentId}:subagent:{sessionId}
+    // 解析 sessionKey: agent:{agentId}:subagent:{uuid}
     const parts = sessionKey.split(':');
     if (parts.length < 4 || parts[0] !== 'agent' || parts[2] !== 'subagent') {
-      return res.status(400).json({ error: 'Invalid sessionKey format. Expected: agent:{agentId}:subagent:{sessionId}' });
+      return res.status(400).json({ error: 'Invalid sessionKey format. Expected: agent:{agentId}:subagent:{uuid}' });
     }
     
     const agentId = parts[1];
-    const sessionId = parts[3];
     const sessionsDir = path.join(AGENTS_DIR, agentId, 'sessions');
+    const sessionsFile = path.join(sessionsDir, 'sessions.json');
+    
+    // 从 sessions.json 中查找 sessionId
+    let sessionId;
+    try {
+      const sessionsContent = await fs.readFile(sessionsFile, 'utf-8');
+      const sessionsData = JSON.parse(sessionsContent);
+      const sessionInfo = sessionsData[sessionKey];
+      if (sessionInfo && sessionInfo.sessionId) {
+        sessionId = sessionInfo.sessionId;
+      } else {
+        return res.status(404).json({ error: 'Session not found in sessions.json' });
+      }
+    } catch (err) {
+      return res.status(404).json({ error: 'Failed to read sessions.json' });
+    }
     
     // 尝试找到会话文件
     let historyFile = path.join(sessionsDir, `${sessionId}.jsonl`);
