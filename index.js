@@ -188,13 +188,69 @@ app.get('/subagents/:agentId/sessions/:sessionId/history', async (req, res) => {
     for (const line of lines) {
       try {
         const entry = JSON.parse(line);
-        // 只提取消息内容
-        if (entry.role && entry.content) {
-          messages.push({
-            role: entry.role,
-            content: entry.content,
-            timestamp: entry.timestamp || entry.ts
-          });
+        
+        // 处理 type: "message" 格式
+        if (entry.type === 'message' && entry.message) {
+          const msg = entry.message;
+          if (msg.role && msg.content) {
+            let text = '';
+            if (typeof msg.content === 'string') {
+              text = msg.content;
+            } else if (Array.isArray(msg.content)) {
+              const parts = [];
+              for (const c of msg.content) {
+                if (c.type === 'text' && c.text) {
+                  parts.push(c.text);
+                } else if (c.type === 'toolCall' && c.name) {
+                  parts.push(`🔧 调用: ${c.name}`);
+                } else if (c.type === 'toolResult') {
+                  const resultPreview = typeof c.content === 'string' 
+                    ? c.content.slice(0, 200) 
+                    : JSON.stringify(c.content).slice(0, 200);
+                  parts.push(`📋 结果: ${resultPreview}${resultPreview.length >= 200 ? '...' : ''}`);
+                }
+              }
+              text = parts.join('\n');
+            }
+            
+            if (text) {
+              messages.push({
+                role: msg.role,
+                content: { text },
+                timestamp: msg.timestamp || entry.timestamp
+              });
+            }
+          }
+        }
+        // 处理旧格式 (直接 role + content)
+        else if (entry.role && entry.content) {
+          let text = '';
+          if (typeof entry.content === 'string') {
+            text = entry.content;
+          } else if (Array.isArray(entry.content)) {
+            const parts = [];
+            for (const c of entry.content) {
+              if (c.type === 'text' && c.text) {
+                parts.push(c.text);
+              } else if (c.type === 'toolCall' && c.name) {
+                parts.push(`🔧 调用: ${c.name}`);
+              } else if (c.type === 'toolResult') {
+                const resultPreview = typeof c.content === 'string' 
+                  ? c.content.slice(0, 200) 
+                  : JSON.stringify(c.content).slice(0, 200);
+                parts.push(`📋 结果: ${resultPreview}${resultPreview.length >= 200 ? '...' : ''}`);
+              }
+            }
+            text = parts.join('\n');
+          }
+          
+          if (text) {
+            messages.push({
+              role: entry.role,
+              content: { text },
+              timestamp: entry.timestamp || entry.ts
+            });
+          }
         }
       } catch {
         // 跳过解析失败的行
